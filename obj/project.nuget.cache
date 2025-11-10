@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "Tl6M7r0YFfs=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\2233091\\Documents\\Code\\plateforme\\Plateforme.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\2233091\\.nuget\\packages\\octokit\\13.0.1\\octokit.13.0.1.nupkg.sha512"
+  ],
+  "logs": []
+}
