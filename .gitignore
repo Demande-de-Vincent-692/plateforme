@@ -1,6 +1,9 @@
 # Fichiers de configuration contenant des secrets
 appsettings.json
 
+# Dossier contenant les repositories clonés
+Repo/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
