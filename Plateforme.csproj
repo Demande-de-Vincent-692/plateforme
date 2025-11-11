@@ -10,4 +10,12 @@
 	<ItemGroup>
 		<PackageReference Include="Octokit" Version="13.0.1" />
 	</ItemGroup>
+	<ItemGroup>
+		<None Update="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Repo\" />
+	</ItemGroup>
 </Project>

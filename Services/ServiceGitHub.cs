@@ -1,6 +1,8 @@
 ﻿using Octokit;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Plateforme.Services
@@ -14,11 +16,39 @@ namespace Plateforme.Services
         {
             _organizationName = organizationName;
 
-            // Créer le client GitHub (sans token pour l'instant)
+            // Créer le client GitHub
             _client = new GitHubClient(new ProductHeaderValue("ProjectLauncher"));
+
+            // Charger le token depuis appsettings.json
+            LoadGitHubToken();
         }
 
-        /// Récupère tous les repositories publics d'une organisation
+        private void LoadGitHubToken()
+        {
+            try
+            {
+                // Chemin vers le fichier appsettings.json
+                string settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+
+                if (File.Exists(settingsPath))
+                {
+                    string jsonContent = File.ReadAllText(settingsPath);
+                    var settings = JsonSerializer.Deserialize<AppSettings>(jsonContent);
+
+                    if (!string.IsNullOrWhiteSpace(settings?.GitHub?.Token))
+                    {
+                        _client.Credentials = new Credentials(settings.GitHub.Token);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Si le fichier n'existe pas ou est invalide, on continue sans token
+                Console.WriteLine($"Impossible de charger le token: {ex.Message}");
+            }
+        }
+
+        /// Récupère tous les repositories publics et privés d'une organisation
         public async Task<List<Repository>> GetOrganizationRepositoriesAsync()
         {
             try
@@ -33,6 +63,18 @@ namespace Plateforme.Services
                 throw new Exception($"Erreur lors de la récupération des repos: {ex.Message}", ex);
             }
         }
+    }
+
+    // Classes pour la désérialisation du fichier appsettings.json
+    public class AppSettings
+    {
+        public GitHubSettings GitHub { get; set; }
+    }
+
+    public class GitHubSettings
+    {
+        public string Token { get; set; }
+        public string OrganizationName { get; set; }
     }
 }
 
