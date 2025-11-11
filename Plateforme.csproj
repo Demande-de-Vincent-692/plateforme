@@ -16,6 +16,10 @@
 		</None>
 	</ItemGroup>
 	<ItemGroup>
+		<Resource Include="img\vscode.png" />
+		<Resource Include="img\visual-studio.png" />
+	</ItemGroup>
+	<ItemGroup>
 	  <Folder Include="Repo\" />
 	</ItemGroup>
 </Project>

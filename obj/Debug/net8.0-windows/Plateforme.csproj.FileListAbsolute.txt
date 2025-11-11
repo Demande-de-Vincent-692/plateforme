@@ -44,3 +44,5 @@ C:\Users\calvi\Desktop\plateforme\obj\Debug\net8.0-windows\refint\Plateforme.dll
 C:\Users\calvi\Desktop\plateforme\obj\Debug\net8.0-windows\Plateforme.pdb
 C:\Users\calvi\Desktop\plateforme\obj\Debug\net8.0-windows\Plateforme.genruntimeconfig.cache
 C:\Users\calvi\Desktop\plateforme\obj\Debug\net8.0-windows\ref\Plateforme.dll
+C:\Users\calvi\Desktop\plateforme\obj\Debug\net8.0-windows\IDESelectionDialog.baml
+C:\Users\calvi\Desktop\plateforme\obj\Debug\net8.0-windows\IDESelectionDialog.g.cs

@@ -5,6 +5,16 @@ using System.Threading.Tasks;
 
 namespace Plateforme.Services
 {
+    /// <summary>
+    /// Résultat d'une opération Git
+    /// </summary>
+    public class GitOperationResult
+    {
+        public bool Success { get; set; }
+        public required string Message { get; set; }
+        public required string RepoPath { get; set; }
+    }
+
     public class ServiceGit
     {
         private readonly string _repoBaseDirectory;
@@ -26,8 +36,8 @@ namespace Plateforme.Services
         /// <param name="cloneUrl">L'URL de clone du repository</param>
         /// <param name="repoName">Le nom du repository</param>
         /// <param name="token">Token GitHub pour l'authentification (optionnel)</param>
-        /// <returns>Message indiquant le résultat de l'opération</returns>
-        public async Task<string> CloneOrPullRepositoryAsync(string cloneUrl, string repoName, string token = null)
+        /// <returns>Résultat de l'opération incluant le succès, le message et le chemin</returns>
+        public async Task<GitOperationResult> CloneOrPullRepositoryAsync(string cloneUrl, string repoName, string token = null)
         {
             try
             {
@@ -55,14 +65,19 @@ namespace Plateforme.Services
             }
             catch (Exception ex)
             {
-                return $"❌ Erreur : {ex.Message}";
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur : {ex.Message}",
+                    RepoPath = Path.Combine(_repoBaseDirectory, repoName)
+                };
             }
         }
 
         /// <summary>
         /// Clone un nouveau repository
         /// </summary>
-        private async Task<string> CloneRepositoryAsync(string cloneUrl, string repoPath, string repoName)
+        private async Task<GitOperationResult> CloneRepositoryAsync(string cloneUrl, string repoPath, string repoName)
         {
             try
             {
@@ -88,24 +103,39 @@ namespace Plateforme.Services
 
                     if (process.ExitCode == 0)
                     {
-                        return $"✅ Repository '{repoName}' cloné avec succès !";
+                        return new GitOperationResult
+                        {
+                            Success = true,
+                            Message = $"✅ Repository '{repoName}' cloné avec succès !",
+                            RepoPath = repoPath
+                        };
                     }
                     else
                     {
-                        return $"❌ Erreur lors du clone de '{repoName}' :\n{error}";
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du clone de '{repoName}' :\n{error}",
+                            RepoPath = repoPath
+                        };
                     }
                 }
             }
             catch (Exception ex)
             {
-                return $"❌ Erreur lors du clone : {ex.Message}";
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur lors du clone : {ex.Message}",
+                    RepoPath = repoPath
+                };
             }
         }
 
         /// <summary>
         /// Met à jour un repository existant avec git pull
         /// </summary>
-        private async Task<string> PullRepositoryAsync(string repoPath, string repoName)
+        private async Task<GitOperationResult> PullRepositoryAsync(string repoPath, string repoName)
         {
             try
             {
@@ -131,24 +161,121 @@ namespace Plateforme.Services
 
                     if (process.ExitCode == 0)
                     {
+                        string message;
                         if (output.Contains("Already up to date"))
                         {
-                            return $"ℹ️ Repository '{repoName}' déjà à jour.";
+                            message = $"ℹ️ Repository '{repoName}' déjà à jour.";
                         }
                         else
                         {
-                            return $"✅ Repository '{repoName}' mis à jour avec succès !\n{output}";
+                            message = $"✅ Repository '{repoName}' mis à jour avec succès !\n{output}";
                         }
+
+                        return new GitOperationResult
+                        {
+                            Success = true,
+                            Message = message,
+                            RepoPath = repoPath
+                        };
                     }
                     else
                     {
-                        return $"❌ Erreur lors du pull de '{repoName}' :\n{error}";
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du pull de '{repoName}' :\n{error}",
+                            RepoPath = repoPath
+                        };
                     }
                 }
             }
             catch (Exception ex)
             {
-                return $"❌ Erreur lors du pull : {ex.Message}";
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur lors du pull : {ex.Message}",
+                    RepoPath = repoPath
+                };
+            }
+        }
+
+        /// <summary>
+        /// Ouvre le repository dans Visual Studio Code
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository à ouvrir</param>
+        /// <returns>True si VSCode a été lancé avec succès, False sinon</returns>
+        public bool OpenInVSCode(string repoPath)
+        {
+            try
+            {
+                if (!Directory.Exists(repoPath))
+                {
+                    return false;
+                }
+
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "code",
+                    Arguments = $"\"{repoPath}\"",
+                    UseShellExecute = true,
+                    CreateNoWindow = true
+                };
+
+                Process.Start(processInfo);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Ouvre le repository dans Visual Studio
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository à ouvrir</param>
+        /// <returns>True si Visual Studio a été lancé avec succès, False sinon</returns>
+        public bool OpenInVisualStudio(string repoPath)
+        {
+            try
+            {
+                if (!Directory.Exists(repoPath))
+                {
+                    return false;
+                }
+
+                // Chercher un fichier solution (.sln) dans le répertoire
+                var solutionFiles = Directory.GetFiles(repoPath, "*.sln", SearchOption.TopDirectoryOnly);
+
+                if (solutionFiles.Length > 0)
+                {
+                    // Ouvrir la première solution trouvée
+                    var processInfo = new ProcessStartInfo
+                    {
+                        FileName = solutionFiles[0],
+                        UseShellExecute = true
+                    };
+
+                    Process.Start(processInfo);
+                    return true;
+                }
+                else
+                {
+                    // Pas de fichier .sln, ouvrir le dossier directement
+                    var processInfo = new ProcessStartInfo
+                    {
+                        FileName = repoPath,
+                        UseShellExecute = true
+                    };
+
+                    Process.Start(processInfo);
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
             }
         }
 

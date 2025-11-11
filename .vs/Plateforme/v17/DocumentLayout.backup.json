@@ -3,16 +3,20 @@
   "WorkspaceRootPath": "C:\\Users\\calvi\\Desktop\\plateforme\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|c:\\users\\calvi\\desktop\\plateforme\\ideselectiondialog.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|solutionrelative:ideselectiondialog.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|c:\\users\\calvi\\desktop\\plateforme\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|solutionrelative:mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|c:\\users\\calvi\\desktop\\plateforme\\services\\servicegithub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|solutionrelative:services\\servicegithub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|c:\\users\\calvi\\desktop\\plateforme\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
       "RelativeMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|solutionrelative:mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|c:\\users\\calvi\\desktop\\plateforme\\services\\servicegithub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2542C1AA-DF5D-40A5-A7A2-03452DD87881}|Plateforme.csproj|solutionrelative:services\\servicegithub.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -27,27 +31,40 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "IDESelectionDialog.xaml",
+              "DocumentMoniker": "C:\\Users\\calvi\\Desktop\\plateforme\\IDESelectionDialog.xaml",
+              "RelativeDocumentMoniker": "IDESelectionDialog.xaml",
+              "ToolTip": "C:\\Users\\calvi\\Desktop\\plateforme\\IDESelectionDialog.xaml",
+              "RelativeToolTip": "IDESelectionDialog.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2025-11-11T01:44:06.18Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "MainWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\calvi\\Desktop\\plateforme\\MainWindow.xaml.cs",
               "RelativeDocumentMoniker": "MainWindow.xaml.cs",
               "ToolTip": "C:\\Users\\calvi\\Desktop\\plateforme\\MainWindow.xaml.cs",
               "RelativeToolTip": "MainWindow.xaml.cs",
-              "ViewState": "AgIAADoAAAAAAAAAAAAYwCUAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAANwAAAAAAAAAAAAgwOcAAAA/AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-11-10T00:07:47.615Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 3,
               "Title": "ServiceGitHub.cs",
               "DocumentMoniker": "C:\\Users\\calvi\\Desktop\\plateforme\\Services\\ServiceGitHub.cs",
               "RelativeDocumentMoniker": "Services\\ServiceGitHub.cs",
               "ToolTip": "C:\\Users\\calvi\\Desktop\\plateforme\\Services\\ServiceGitHub.cs",
               "RelativeToolTip": "Services\\ServiceGitHub.cs",
-              "ViewState": "AgIAAAkAAAAAAAAAAAAAABAAAAAVAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAaAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-10T21:01:34.492Z"
+              "WhenOpened": "2025-11-10T21:01:34.492Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -58,7 +75,8 @@
               "ToolTip": "C:\\Users\\calvi\\Desktop\\plateforme\\MainWindow.xaml",
               "RelativeToolTip": "MainWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-11-10T00:06:55.822Z"
+              "WhenOpened": "2025-11-10T00:06:55.822Z",
+              "EditorCaption": ""
             }
           ]
         }
