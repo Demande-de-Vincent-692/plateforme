@@ -205,9 +205,53 @@ namespace Plateforme
                 AddNotification($"\n⬇️ Downloading repository '{repo.Name}'...");
 
                 // Cloner ou mettre à jour le repository
-                string result = await _serviceGit.CloneOrPullRepositoryAsync(repo.CloneUrl, repo.Name, _githubToken);
+                var result = await _serviceGit.CloneOrPullRepositoryAsync(repo.CloneUrl, repo.Name, _githubToken);
 
-                AddNotification($"{result}\n");
+                AddNotification($"{result.Message}\n");
+
+                // Ouvrir dans un IDE si l'opération a réussi
+                if (result.Success)
+                {
+                    // Afficher la fenêtre de dialogue pour choisir l'IDE
+                    var ideDialog = new IDESelectionDialog
+                    {
+                        Owner = this
+                    };
+
+                    bool? dialogResult = ideDialog.ShowDialog();
+
+                    if (dialogResult == true)
+                    {
+                        bool ideOpened = false;
+                        string ideName = "";
+
+                        switch (ideDialog.SelectedIDE)
+                        {
+                            case IDEChoice.VSCode:
+                                ideOpened = _serviceGit.OpenInVSCode(result.RepoPath);
+                                ideName = "Visual Studio Code";
+                                break;
+
+                            case IDEChoice.VisualStudio:
+                                ideOpened = _serviceGit.OpenInVisualStudio(result.RepoPath);
+                                ideName = "Visual Studio";
+                                break;
+                        }
+
+                        if (ideOpened)
+                        {
+                            AddNotification($"🚀 Ouverture du projet dans {ideName}...\n");
+                        }
+                        else
+                        {
+                            AddNotification($"⚠️ Impossible d'ouvrir {ideName}. Vérifiez qu'il est bien installé.\n");
+                        }
+                    }
+                    else
+                    {
+                        AddNotification($"ℹ️ Aucun IDE sélectionné.\n");
+                    }
+                }
             }
             catch (Exception ex)
             {
