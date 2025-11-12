@@ -307,5 +307,75 @@ namespace Plateforme.Services
                 return false;
             }
         }
+
+        /// <summary>
+        /// Exécute le script setup.cmd dans le repository pour installer les dépendances
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository contenant setup.cmd</param>
+        /// <returns>Résultat de l'opération incluant le succès et le message</returns>
+        public async Task<GitOperationResult> RunSetupScriptAsync(string repoPath)
+        {
+            try
+            {
+                string setupScriptPath = Path.Combine(repoPath, "setup.cmd");
+
+                // Vérifier que le script existe
+                if (!File.Exists(setupScriptPath))
+                {
+                    return new GitOperationResult
+                    {
+                        Success = false,
+                        Message = "⚠️ Le fichier setup.cmd n'existe pas dans ce projet.",
+                        RepoPath = repoPath
+                    };
+                }
+
+                // Lancer le script dans une fenêtre visible pour que l'utilisateur puisse suivre la progression
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/K \"cd /d \"{repoPath}\" && setup.cmd && exit\"",
+                    UseShellExecute = true,
+                    CreateNoWindow = false,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var process = new Process { StartInfo = processInfo })
+                {
+                    process.Start();
+
+                    // Attendre la fin du processus
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = true,
+                            Message = "✅ Dépendances installées avec succès !",
+                            RepoPath = repoPath
+                        };
+                    }
+                    else
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"⚠️ L'installation des dépendances s'est terminée avec le code {process.ExitCode}.",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur lors de l'exécution de setup.cmd : {ex.Message}",
+                    RepoPath = repoPath
+                };
+            }
+        }
     }
 }

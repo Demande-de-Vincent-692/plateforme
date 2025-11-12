@@ -17,6 +17,8 @@ namespace Plateforme
         private ServiceGit _serviceGit;
         private string _githubToken;
         private int _notificationCount = 0;
+        private string _repoDirectory;
+        private Repository _selectedRepository;
 
         public MainWindow()
         {
@@ -30,8 +32,8 @@ namespace Plateforme
             // Créer le service Git avec le dossier "Repo" à la racine du projet
             // Remonter de 3 niveaux depuis bin/Debug/net8.0-windows/ pour atteindre la racine
             string projectRoot = Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory).Parent.Parent.Parent.FullName;
-            string repoDirectory = Path.Combine(projectRoot, "Repo");
-            _serviceGit = new ServiceGit(repoDirectory);
+            _repoDirectory = Path.Combine(projectRoot, "Repo");
+            _serviceGit = new ServiceGit(_repoDirectory);
 
             LoadProjects();
         }
@@ -55,6 +57,12 @@ namespace Plateforme
             }
         }
 
+        private bool IsProjectInstalled(string repoName)
+        {
+            string repoPath = Path.Combine(_repoDirectory, repoName);
+            return Directory.Exists(repoPath);
+        }
+
         private async void LoadProjects()
         {
             try
@@ -65,20 +73,40 @@ namespace Plateforme
                 var repos = await _serviceGitHub.GetOrganizationRepositoriesAsync();
                 AddNotification($"✅ {repos.Count} project(s) found!");
 
-                // Vider le panel avant d'ajouter les nouveaux projets
-                ProjectsPanel.Children.Clear();
+                // Vider les panneaux avant d'ajouter les nouveaux projets
+                AvailableProjectsPanel.Children.Clear();
+                InstalledProjectsPanel.Children.Clear();
 
-                // Créer une carte pour chaque repo
+                int availableCount = 0;
+                int installedCount = 0;
+
+                // Créer une carte pour chaque repo et la placer dans le bon onglet
                 foreach (var repo in repos)
                 {
-                    // Créer la carte du projet
-                    Border card = CreateProjectCard(repo);
-                    ProjectsPanel.Children.Add(card);
-
-                    AddNotification($"   ➕ Card created: {repo.Name}");
+                    // Vérifier si le projet est déjà installé
+                    if (IsProjectInstalled(repo.Name))
+                    {
+                        // Créer la carte avec le tag "Installed"
+                        Border card = CreateProjectCard(repo, "Installed");
+                        InstalledProjectsPanel.Children.Add(card);
+                        installedCount++;
+                        AddNotification($"   💻 {repo.Name} (installed)");
+                    }
+                    else
+                    {
+                        // Créer la carte avec le tag "Available"
+                        Border card = CreateProjectCard(repo, "Available");
+                        AvailableProjectsPanel.Children.Add(card);
+                        availableCount++;
+                        AddNotification($"   🌐 {repo.Name} (available)");
+                    }
                 }
 
-                AddNotification("✅ Interface updated!");
+                // Mettre à jour les compteurs dans les badges
+                AvailableCount.Text = availableCount.ToString();
+                InstalledCount.Text = installedCount.ToString();
+
+                AddNotification($"✅ Interface updated! {availableCount} available, {installedCount} installed");
             }
             catch (Exception ex)
             {
@@ -86,12 +114,13 @@ namespace Plateforme
             }
         }
 
-        private Border CreateProjectCard(Repository repo)
+        private Border CreateProjectCard(Repository repo, string cardType)
         {
             // Carte principale
             Border card = new Border
             {
-                Style = (Style)FindResource("ProjectCardStyle")
+                Style = (Style)FindResource("ProjectCardStyle"),
+                Tag = cardType // "Available" ou "Installed"
             };
 
             // Grid pour organiser le contenu
@@ -188,80 +217,156 @@ namespace Plateforme
 
         private async void ProjectCard_Click(Repository repo, Border card)
         {
-            // Afficher les informations du repo
-            AddNotification($"\n🔵 Selected project: {repo.Name}");
-            AddNotification($"   📝 Description: {repo.Description ?? "No description"}");
-            AddNotification($"   🔗 URL: {repo.HtmlUrl}");
-            AddNotification($"   📁 Clone URL: {repo.CloneUrl}");
-            AddNotification($"   🔒 Private: {(repo.Private ? "Yes" : "No")}");
+            string cardType = card.Tag as string;
 
-            // Modifier l'apparence de la carte pendant le traitement
-            var originalBackground = card.Background;
-            card.Background = new SolidColorBrush(Color.FromRgb(240, 240, 245));
-            card.Cursor = Cursors.Wait;
+            // Comportement différent selon le type de carte
+            if (cardType == "Installed")
+            {
+                // Pour les projets installés : ouvrir la page de détails
+                ShowDetailView(repo);
+            }
+            else if (cardType == "Available")
+            {
+                // Pour les projets disponibles : juste cloner sans lancer
+                AddNotification($"\n🔵 Selected project: {repo.Name}");
+                AddNotification($"   📝 Description: {repo.Description ?? "No description"}");
+
+                // Modifier l'apparence de la carte pendant le traitement
+                var originalBackground = card.Background;
+                card.Background = new SolidColorBrush(Color.FromRgb(240, 240, 245));
+                card.Cursor = Cursors.Wait;
+
+                try
+                {
+                    AddNotification($"\n⬇️ Downloading repository '{repo.Name}'...");
+
+                    // Cloner le repository
+                    var result = await _serviceGit.CloneOrPullRepositoryAsync(repo.CloneUrl, repo.Name, _githubToken);
+
+                    AddNotification($"{result.Message}\n");
+
+                    if (result.Success)
+                    {
+                        AddNotification($"✅ Le projet '{repo.Name}' est maintenant disponible dans l'onglet 'Installed'.\n");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddNotification($"❌ Error: {ex.Message}\n");
+                }
+                finally
+                {
+                    // Restaurer l'apparence de la carte
+                    card.Background = originalBackground;
+                    card.Cursor = Cursors.Hand;
+
+                    // Rafraîchir l'interface pour mettre à jour les onglets
+                    LoadProjects();
+                }
+            }
+        }
+
+        private void ShowDetailView(Repository repo)
+        {
+            // Sauvegarder le repo sélectionné
+            _selectedRepository = repo;
+
+            // Remplir les informations de la page de détails
+            DetailProjectName.Text = repo.Name;
+            DetailProjectDescription.Text = string.IsNullOrWhiteSpace(repo.Description)
+                ? "No description available"
+                : repo.Description;
+            DetailProjectPath.Text = $"Repo/{repo.Name}";
+
+            // Afficher la page de détails et cacher le TabControl
+            MainTabControl.Visibility = Visibility.Collapsed;
+            DetailView.Visibility = Visibility.Visible;
+
+            AddNotification($"\n📖 Viewing details for: {repo.Name}");
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Retour à la vue principale
+            DetailView.Visibility = Visibility.Collapsed;
+            MainTabControl.Visibility = Visibility.Visible;
+
+            AddNotification($"↩️ Back to projects list\n");
+        }
+
+        private async void LaunchProjectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRepository == null)
+            {
+                AddNotification($"❌ No project selected\n");
+                return;
+            }
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            AddNotification($"\n🚀 Preparing to launch: {_selectedRepository.Name}");
 
             try
             {
-                AddNotification($"\n⬇️ Downloading repository '{repo.Name}'...");
-
-                // Cloner ou mettre à jour le repository
-                var result = await _serviceGit.CloneOrPullRepositoryAsync(repo.CloneUrl, repo.Name, _githubToken);
-
-                AddNotification($"{result.Message}\n");
-
-                // Ouvrir dans un IDE si l'opération a réussi
-                if (result.Success)
+                // Afficher la fenêtre de dialogue pour choisir l'IDE
+                var ideDialog = new IDESelectionDialog
                 {
-                    // Afficher la fenêtre de dialogue pour choisir l'IDE
-                    var ideDialog = new IDESelectionDialog
+                    Owner = this
+                };
+
+                bool? dialogResult = ideDialog.ShowDialog();
+
+                if (dialogResult == true)
+                {
+                    // Installer les dépendances si demandé
+                    if (ideDialog.InstallDependencies)
                     {
-                        Owner = this
-                    };
+                        AddNotification($"\n📦 Installation des dépendances...");
+                        AddNotification($"   ⏳ Exécution de setup.cmd (cela peut prendre plusieurs minutes)...\n");
 
-                    bool? dialogResult = ideDialog.ShowDialog();
+                        var setupResult = await _serviceGit.RunSetupScriptAsync(repoPath);
+                        AddNotification($"{setupResult.Message}\n");
 
-                    if (dialogResult == true)
+                        // Continuer même si l'installation échoue
+                        if (!setupResult.Success)
+                        {
+                            AddNotification($"⚠️ Le projet sera ouvert malgré l'échec de l'installation.\n");
+                        }
+                    }
+
+                    bool ideOpened = false;
+                    string ideName = "";
+
+                    switch (ideDialog.SelectedIDE)
                     {
-                        bool ideOpened = false;
-                        string ideName = "";
+                        case IDEChoice.VSCode:
+                            ideOpened = _serviceGit.OpenInVSCode(repoPath);
+                            ideName = "Visual Studio Code";
+                            break;
 
-                        switch (ideDialog.SelectedIDE)
-                        {
-                            case IDEChoice.VSCode:
-                                ideOpened = _serviceGit.OpenInVSCode(result.RepoPath);
-                                ideName = "Visual Studio Code";
-                                break;
+                        case IDEChoice.VisualStudio:
+                            ideOpened = _serviceGit.OpenInVisualStudio(repoPath);
+                            ideName = "Visual Studio";
+                            break;
+                    }
 
-                            case IDEChoice.VisualStudio:
-                                ideOpened = _serviceGit.OpenInVisualStudio(result.RepoPath);
-                                ideName = "Visual Studio";
-                                break;
-                        }
-
-                        if (ideOpened)
-                        {
-                            AddNotification($"🚀 Ouverture du projet dans {ideName}...\n");
-                        }
-                        else
-                        {
-                            AddNotification($"⚠️ Impossible d'ouvrir {ideName}. Vérifiez qu'il est bien installé.\n");
-                        }
+                    if (ideOpened)
+                    {
+                        AddNotification($"🚀 Ouverture du projet dans {ideName}...\n");
                     }
                     else
                     {
-                        AddNotification($"ℹ️ Aucun IDE sélectionné.\n");
+                        AddNotification($"⚠️ Impossible d'ouvrir {ideName}. Vérifiez qu'il est bien installé.\n");
                     }
+                }
+                else
+                {
+                    AddNotification($"ℹ️ Aucun IDE sélectionné.\n");
                 }
             }
             catch (Exception ex)
             {
                 AddNotification($"❌ Error: {ex.Message}\n");
-            }
-            finally
-            {
-                // Restaurer l'apparence de la carte
-                card.Background = originalBackground;
-                card.Cursor = Cursors.Hand;
             }
         }
 

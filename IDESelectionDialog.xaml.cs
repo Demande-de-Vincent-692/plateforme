@@ -18,16 +18,19 @@ namespace Plateforme
     public partial class IDESelectionDialog : Window
     {
         public IDEChoice SelectedIDE { get; private set; }
+        public bool InstallDependencies { get; private set; }
 
         public IDESelectionDialog()
         {
             InitializeComponent();
             SelectedIDE = IDEChoice.None;
+            InstallDependencies = false;
         }
 
         private void VSCodeButton_Click(object sender, RoutedEventArgs e)
         {
             SelectedIDE = IDEChoice.VSCode;
+            InstallDependencies = InstallDependenciesCheckBox.IsChecked ?? false;
             DialogResult = true;
             Close();
         }
@@ -35,6 +38,7 @@ namespace Plateforme
         private void VisualStudioButton_Click(object sender, RoutedEventArgs e)
         {
             SelectedIDE = IDEChoice.VisualStudio;
+            InstallDependencies = InstallDependenciesCheckBox.IsChecked ?? false;
             DialogResult = true;
             Close();
         }
