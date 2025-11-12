@@ -185,25 +185,296 @@
             </Grid>
         </Border>
 
-        <!-- Zone principale avec les projets -->
-        <ScrollViewer Grid.Row="1"
-                     VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Disabled"
-                     Padding="20">
-            <StackPanel>
-                <!-- Titre de section -->
-                <TextBlock Text="Your Repositories"
-                          FontSize="24"
-                          FontWeight="SemiBold"
-                          Foreground="#1F2937"
-                          Margin="15,10,0,20"/>
+        <!-- Zone principale avec onglets -->
+        <TabControl x:Name="MainTabControl"
+                    Grid.Row="1"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="20,10,20,20">
+            <TabControl.Resources>
+                <!-- Style pour les onglets -->
+                <Style TargetType="TabItem">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="TabItem">
+                                <Border Name="Border"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="8,8,0,0"
+                                        Padding="20,12"
+                                        Margin="0,0,5,0">
+                                    <ContentPresenter ContentSource="Header"
+                                                     HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Border" Property="Background" Value="White"/>
+                                        <Setter Property="Foreground" Value="#4F46E5"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="False">
+                                        <Setter TargetName="Border" Property="Background" Value="#E5E7EB"/>
+                                        <Setter Property="Foreground" Value="#6B7280"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Border" Property="Background" Value="#F3F4F6"/>
+                                    </Trigger>
+                                    <MultiTrigger>
+                                        <MultiTrigger.Conditions>
+                                            <Condition Property="IsSelected" Value="True"/>
+                                            <Condition Property="IsMouseOver" Value="True"/>
+                                        </MultiTrigger.Conditions>
+                                        <Setter TargetName="Border" Property="Background" Value="White"/>
+                                    </MultiTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </TabControl.Resources>
 
-                <!-- Conteneur des cartes de projets -->
-                <WrapPanel x:Name="ProjectsPanel"
-                          Orientation="Horizontal"
-                          HorizontalAlignment="Left"/>
-            </StackPanel>
-        </ScrollViewer>
+            <!-- Onglet: Projets disponibles -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🌐" FontSize="16" Margin="0,0,8,0"/>
+                        <TextBlock Text="Available" FontSize="14"/>
+                        <Border x:Name="AvailableBadge"
+                                Background="#4F46E5"
+                                CornerRadius="10"
+                                Padding="6,2"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="AvailableCount"
+                                      Text="0"
+                                      Foreground="White"
+                                      FontSize="11"
+                                      FontWeight="Bold"/>
+                        </Border>
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled"
+                             Padding="20,20,20,20">
+                    <StackPanel>
+                        <TextBlock Text="Available Repositories"
+                                  FontSize="24"
+                                  FontWeight="SemiBold"
+                                  Foreground="#1F2937"
+                                  Margin="0,0,0,20"/>
+                        <WrapPanel x:Name="AvailableProjectsPanel"
+                                  Orientation="Horizontal"
+                                  HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Onglet: Projets installés -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="💻" FontSize="16" Margin="0,0,8,0"/>
+                        <TextBlock Text="Installed" FontSize="14"/>
+                        <Border x:Name="InstalledBadge"
+                                Background="#22C55E"
+                                CornerRadius="10"
+                                Padding="6,2"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="InstalledCount"
+                                      Text="0"
+                                      Foreground="White"
+                                      FontSize="11"
+                                      FontWeight="Bold"/>
+                        </Border>
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled"
+                             Padding="20,20,20,20">
+                    <StackPanel>
+                        <TextBlock Text="Installed Repositories"
+                                  FontSize="24"
+                                  FontWeight="SemiBold"
+                                  Foreground="#1F2937"
+                                  Margin="0,0,0,20"/>
+                        <WrapPanel x:Name="InstalledProjectsPanel"
+                                  Orientation="Horizontal"
+                                  HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Page de détails d'un projet -->
+        <Grid x:Name="DetailView"
+              Grid.Row="1"
+              Background="Transparent"
+              Visibility="Collapsed">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         Padding="40,30">
+                <Grid MaxWidth="1100">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Contenu principal gauche -->
+                    <StackPanel Grid.Column="0" Margin="0,0,30,0">
+                        <!-- Bouton retour -->
+                        <Button x:Name="BackButton"
+                                HorizontalAlignment="Left"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Padding="0"
+                                Margin="0,0,0,20"
+                                Click="BackButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="←" FontSize="20" Foreground="#4F46E5" Margin="0,0,8,0"/>
+                                <TextBlock Text="Back to projects" FontSize="14" Foreground="#4F46E5" FontWeight="Medium"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Carte principale avec les informations -->
+                        <Border Background="White"
+                                CornerRadius="16"
+                                Padding="40"
+                                Margin="0,0,0,20">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="20" ShadowDepth="2" Opacity="0.1" Color="#000000"/>
+                            </Border.Effect>
+
+                            <StackPanel>
+                                <!-- Nom du projet -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                    <TextBlock Text="📁" FontSize="36" Margin="0,0,15,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="DetailProjectName"
+                                              Text="Project Name"
+                                              FontSize="32"
+                                              FontWeight="Bold"
+                                              Foreground="#1F2937"
+                                              VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <!-- Description -->
+                                <StackPanel Margin="0,0,0,0">
+                                    <TextBlock Text="Description"
+                                              FontSize="14"
+                                              FontWeight="SemiBold"
+                                              Foreground="#6B7280"
+                                              Margin="0,0,0,10"/>
+                                    <TextBlock x:Name="DetailProjectDescription"
+                                              Text="No description available"
+                                              FontSize="16"
+                                              Foreground="#374151"
+                                              TextWrapping="Wrap"
+                                              LineHeight="24"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Panneau d'actions à droite -->
+                    <StackPanel Grid.Column="1">
+                        <Border Background="White"
+                                CornerRadius="16"
+                                Padding="25">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="20" ShadowDepth="2" Opacity="0.1" Color="#000000"/>
+                            </Border.Effect>
+
+                            <StackPanel>
+                                <TextBlock Text="Actions"
+                                          FontSize="18"
+                                          FontWeight="SemiBold"
+                                          Foreground="#1F2937"
+                                          Margin="0,0,0,20"/>
+
+                                <!-- Bouton Launch Project -->
+                                <Button x:Name="LaunchProjectButton"
+                                        Click="LaunchProjectButton_Click"
+                                        Cursor="Hand"
+                                        Padding="20,15"
+                                        BorderThickness="0">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#6366F1" Offset="0"/>
+                                                        <GradientStop Color="#8B5CF6" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                CornerRadius="12"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background">
+                                                        <Setter.Value>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#7C3AED" Offset="0"/>
+                                                                <GradientStop Color="#A78BFA" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <StackPanel Orientation="Vertical">
+                                        <TextBlock Text="🚀" FontSize="24" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Launch Project"
+                                                  FontSize="16"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="White"
+                                                  HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Informations supplémentaires -->
+                                <Border Background="#F9FAFB"
+                                        CornerRadius="8"
+                                        Padding="15"
+                                        Margin="0,20,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="ℹ️ Quick Info"
+                                                  FontSize="12"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="#6B7280"
+                                                  Margin="0,0,0,10"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                            <TextBlock Text="Status: " FontSize="12" Foreground="#6B7280"/>
+                                            <TextBlock Text="Installed" FontSize="12" Foreground="#22C55E" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Location: " FontSize="12" Foreground="#6B7280"/>
+                                            <TextBlock x:Name="DetailProjectPath"
+                                                      Text="Repo/"
+                                                      FontSize="12"
+                                                      Foreground="#6B7280"
+                                                      TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
 
         <!-- Zone de notifications en overlay (en bas à droite) -->
         <Border x:Name="NotificationPanel"
