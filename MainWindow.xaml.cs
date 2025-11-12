@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -11,6 +13,15 @@ using Plateforme.Services;
 
 namespace Plateforme
 {
+    // Classe helper pour afficher les branches dans le ComboBox
+    public class BranchDisplayItem
+    {
+        public string Icon { get; set; }
+        public string DisplayName { get; set; }
+        public string BranchName { get; set; }
+        public bool IsCurrent { get; set; }
+    }
+
     public partial class MainWindow : Window
     {
         private ServiceGitHub _serviceGitHub;
@@ -19,6 +30,7 @@ namespace Plateforme
         private int _notificationCount = 0;
         private string _repoDirectory;
         private Repository _selectedRepository;
+        private bool _isChangingBranch = false;
 
         public MainWindow()
         {
@@ -266,7 +278,7 @@ namespace Plateforme
             }
         }
 
-        private void ShowDetailView(Repository repo)
+        private async void ShowDetailView(Repository repo)
         {
             // Sauvegarder le repo sélectionné
             _selectedRepository = repo;
@@ -283,6 +295,133 @@ namespace Plateforme
             DetailView.Visibility = Visibility.Visible;
 
             AddNotification($"\n📖 Viewing details for: {repo.Name}");
+
+            // Charger les branches Git
+            await LoadBranchesAsync();
+        }
+
+        private async Task LoadBranchesAsync()
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                AddNotification($"🔍 Loading branches...");
+
+                // Récupérer les branches
+                var branches = await _serviceGit.GetBranchesAsync(repoPath);
+
+                if (branches.Count == 0)
+                {
+                    AddNotification($"⚠️ No branches found");
+                    return;
+                }
+
+                // Désactiver temporairement l'événement SelectionChanged
+                _isChangingBranch = true;
+
+                // Préparer les items pour le ComboBox
+                var displayItems = branches.Select(b => new BranchDisplayItem
+                {
+                    Icon = b.IsCurrent ? "✓" : (b.IsRemote ? "🌐" : "🌿"),
+                    DisplayName = b.IsCurrent ? $"{b.DisplayName} (current)" : b.DisplayName,
+                    BranchName = b.Name,
+                    IsCurrent = b.IsCurrent
+                }).ToList();
+
+                // Remplir le ComboBox
+                BranchSelector.ItemsSource = displayItems;
+
+                // Sélectionner la branche actuelle
+                var currentItem = displayItems.FirstOrDefault(i => i.IsCurrent);
+                if (currentItem != null)
+                {
+                    BranchSelector.SelectedItem = currentItem;
+                }
+
+                // Réactiver l'événement
+                _isChangingBranch = false;
+
+                AddNotification($"✅ {branches.Count} branch(es) loaded");
+            }
+            catch (Exception ex)
+            {
+                _isChangingBranch = false;
+                AddNotification($"❌ Error loading branches: {ex.Message}");
+            }
+        }
+
+        private async void BranchSelector_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            // Ignorer si on est en train de charger les branches
+            if (_isChangingBranch)
+                return;
+
+            var selectedItem = BranchSelector.SelectedItem as BranchDisplayItem;
+            if (selectedItem == null || _selectedRepository == null)
+                return;
+
+            // Ignorer si c'est déjà la branche actuelle
+            if (selectedItem.IsCurrent)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Désactiver le bouton Launch pendant le changement
+                LaunchProjectButton.IsEnabled = false;
+                BranchSelector.IsEnabled = false;
+
+                AddNotification($"\n🔄 Switching to branch '{selectedItem.DisplayName}'...");
+
+                // Changer de branche
+                var result = await _serviceGit.CheckoutBranchAsync(repoPath, selectedItem.BranchName);
+
+                AddNotification($"{result.Message}");
+
+                if (result.Success)
+                {
+                    // Recharger les branches pour mettre à jour l'affichage
+                    await LoadBranchesAsync();
+                    AddNotification($"✅ Branch switched successfully!\n");
+                }
+                else
+                {
+                    // En cas d'échec, remettre la sélection sur la branche actuelle
+                    _isChangingBranch = true;
+                    var currentItem = (BranchSelector.ItemsSource as System.Collections.Generic.List<BranchDisplayItem>)?
+                        .FirstOrDefault(i => i.IsCurrent);
+                    if (currentItem != null)
+                    {
+                        BranchSelector.SelectedItem = currentItem;
+                    }
+                    _isChangingBranch = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Remettre la sélection sur la branche actuelle
+                _isChangingBranch = true;
+                var currentItem = (BranchSelector.ItemsSource as System.Collections.Generic.List<BranchDisplayItem>)?
+                    .FirstOrDefault(i => i.IsCurrent);
+                if (currentItem != null)
+                {
+                    BranchSelector.SelectedItem = currentItem;
+                }
+                _isChangingBranch = false;
+            }
+            finally
+            {
+                // Réactiver le bouton Launch
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+            }
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)

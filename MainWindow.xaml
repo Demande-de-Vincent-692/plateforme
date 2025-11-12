@@ -379,6 +379,58 @@
 
                     <!-- Panneau d'actions à droite -->
                     <StackPanel Grid.Column="1">
+                        <!-- Git Management -->
+                        <Border Background="White"
+                                CornerRadius="16"
+                                Padding="25"
+                                Margin="0,0,0,15">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="20" ShadowDepth="2" Opacity="0.1" Color="#000000"/>
+                            </Border.Effect>
+
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                                    <TextBlock Text="🌿" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Git Management"
+                                              FontSize="18"
+                                              FontWeight="SemiBold"
+                                              Foreground="#1F2937"
+                                              VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <!-- Current Branch Label -->
+                                <TextBlock Text="Current Branch"
+                                          FontSize="13"
+                                          FontWeight="Medium"
+                                          Foreground="#6B7280"
+                                          Margin="0,0,0,8"/>
+
+                                <!-- Branch Selector ComboBox -->
+                                <ComboBox x:Name="BranchSelector"
+                                         SelectionChanged="BranchSelector_Changed"
+                                         FontSize="14"
+                                         Padding="12,10"
+                                         Background="White"
+                                         BorderBrush="#D1D5DB"
+                                         BorderThickness="1">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Icon}"
+                                                          FontSize="14"
+                                                          Margin="0,0,8,0"
+                                                          VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                          FontSize="14"
+                                                          VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Actions -->
                         <Border Background="White"
                                 CornerRadius="16"
                                 Padding="25">

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Plateforme.Services
@@ -309,6 +311,267 @@ namespace Plateforme.Services
         }
 
         /// <summary>
+        /// Vérifie si le repository a des changements non commités
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>True s'il y a des changements non commités, False sinon</returns>
+        public async Task<bool> HasUncommittedChangesAsync(string repoPath)
+        {
+            try
+            {
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "status --porcelain",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var process = new Process { StartInfo = processInfo })
+                {
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    // Si output n'est pas vide, il y a des changements
+                    return !string.IsNullOrWhiteSpace(output);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Récupère la branche Git actuelle
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>Le nom de la branche actuelle, ou null en cas d'erreur</returns>
+        public async Task<string> GetCurrentBranchAsync(string repoPath)
+        {
+            try
+            {
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "branch --show-current",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var process = new Process { StartInfo = processInfo })
+                {
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        return output.Trim();
+                    }
+                }
+            }
+            catch
+            {
+                // Ignorer les erreurs
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Récupère toutes les branches (locales et distantes)
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>Liste des branches avec indication si c'est la branche actuelle</returns>
+        public async Task<List<GitBranch>> GetBranchesAsync(string repoPath)
+        {
+            var branches = new List<GitBranch>();
+
+            try
+            {
+                // D'abord récupérer la branche actuelle
+                string currentBranch = await GetCurrentBranchAsync(repoPath);
+
+                // Récupérer toutes les branches (locales et distantes)
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "branch -a",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var process = new Process { StartInfo = processInfo })
+                {
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+                        foreach (var line in lines)
+                        {
+                            string branchName = line.Trim().TrimStart('*').Trim();
+
+                            // Ignorer HEAD
+                            if (branchName.Contains("HEAD ->"))
+                                continue;
+
+                            bool isRemote = branchName.StartsWith("remotes/");
+                            bool isCurrent = branchName == currentBranch ||
+                                           (currentBranch != null && branchName == $"remotes/origin/{currentBranch}");
+
+                            // Nettoyer le nom pour l'affichage
+                            string displayName = branchName;
+                            if (isRemote)
+                            {
+                                displayName = branchName.Replace("remotes/origin/", "origin/");
+                            }
+
+                            // Éviter les doublons (ne pas ajouter origin/branch si branch existe déjà localement)
+                            if (isRemote)
+                            {
+                                string remoteBranchName = branchName.Replace("remotes/origin/", "");
+                                if (branches.Any(b => !b.IsRemote && b.Name == remoteBranchName))
+                                    continue;
+                            }
+
+                            branches.Add(new GitBranch
+                            {
+                                Name = branchName,
+                                DisplayName = displayName,
+                                IsRemote = isRemote,
+                                IsCurrent = isCurrent
+                            });
+                        }
+                    }
+                }
+
+                // Trier : branche actuelle en premier, puis locales, puis distantes
+                branches = branches
+                    .OrderByDescending(b => b.IsCurrent)
+                    .ThenBy(b => b.IsRemote)
+                    .ThenBy(b => b.DisplayName)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors de la récupération des branches : {ex.Message}");
+            }
+
+            return branches;
+        }
+
+        /// <summary>
+        /// Change de branche Git
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <param name="branchName">Le nom de la branche (peut être local ou remote)</param>
+        /// <returns>Résultat de l'opération</returns>
+        public async Task<GitOperationResult> CheckoutBranchAsync(string repoPath, string branchName)
+        {
+            try
+            {
+                // Vérifier s'il y a des changements non commités
+                bool hasChanges = await HasUncommittedChangesAsync(repoPath);
+                if (hasChanges)
+                {
+                    return new GitOperationResult
+                    {
+                        Success = false,
+                        Message = "⚠️ Vous avez des changements non commités. Veuillez les commiter ou les annuler avant de changer de branche.",
+                        RepoPath = repoPath
+                    };
+                }
+
+                string gitCommand;
+                bool isRemoteBranch = branchName.StartsWith("remotes/");
+
+                if (isRemoteBranch)
+                {
+                    // Pour une branche distante, créer une branche locale qui track la distante
+                    string localBranchName = branchName.Replace("remotes/origin/", "");
+                    gitCommand = $"checkout -b {localBranchName} {branchName}";
+                }
+                else
+                {
+                    // Pour une branche locale, checkout simple
+                    gitCommand = $"checkout {branchName}";
+                }
+
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = gitCommand,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var process = new Process { StartInfo = processInfo })
+                {
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0 || output.Contains("Switched to") || error.Contains("Switched to"))
+                    {
+                        string displayBranch = isRemoteBranch
+                            ? branchName.Replace("remotes/origin/", "")
+                            : branchName;
+
+                        return new GitOperationResult
+                        {
+                            Success = true,
+                            Message = $"✅ Switched to branch '{displayBranch}'",
+                            RepoPath = repoPath
+                        };
+                    }
+                    else
+                    {
+                        // Cas spécial : la branche existe déjà localement
+                        if (error.Contains("already exists"))
+                        {
+                            string localBranchName = branchName.Replace("remotes/origin/", "");
+                            return await CheckoutBranchAsync(repoPath, localBranchName);
+                        }
+
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du changement de branche :\n{error}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur : {ex.Message}",
+                    RepoPath = repoPath
+                };
+            }
+        }
+
+        /// <summary>
         /// Exécute le script setup.cmd dans le repository pour installer les dépendances
         /// </summary>
         /// <param name="repoPath">Le chemin du repository contenant setup.cmd</param>
@@ -377,5 +640,16 @@ namespace Plateforme.Services
                 };
             }
         }
+    }
+
+    /// <summary>
+    /// Représente une branche Git
+    /// </summary>
+    public class GitBranch
+    {
+        public string Name { get; set; }
+        public string DisplayName { get; set; }
+        public bool IsRemote { get; set; }
+        public bool IsCurrent { get; set; }
     }
 }
