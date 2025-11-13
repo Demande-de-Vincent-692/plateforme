@@ -572,6 +572,337 @@ namespace Plateforme.Services
         }
 
         /// <summary>
+        /// Fetch et pull les derniers changements depuis le repository distant
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>Résultat de l'opération</returns>
+        public async Task<GitOperationResult> FetchAndPullAsync(string repoPath)
+        {
+            try
+            {
+                // Étape 1 : git fetch pour récupérer les références
+                var fetchProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "fetch",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var fetchProcess = new Process { StartInfo = fetchProcessInfo })
+                {
+                    fetchProcess.Start();
+                    string fetchOutput = await fetchProcess.StandardOutput.ReadToEndAsync();
+                    string fetchError = await fetchProcess.StandardError.ReadToEndAsync();
+                    await fetchProcess.WaitForExitAsync();
+
+                    if (fetchProcess.ExitCode != 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du fetch :\n{fetchError}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+
+                // Étape 2 : git pull pour fusionner les changements
+                var pullProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "pull",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var pullProcess = new Process { StartInfo = pullProcessInfo })
+                {
+                    pullProcess.Start();
+                    string pullOutput = await pullProcess.StandardOutput.ReadToEndAsync();
+                    string pullError = await pullProcess.StandardError.ReadToEndAsync();
+                    await pullProcess.WaitForExitAsync();
+
+                    // Vérifier s'il y a des conflits
+                    if (pullError.Contains("CONFLICT") || pullOutput.Contains("CONFLICT"))
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = "⚠️ Conflits détectés lors du pull.\n\nVeuillez résoudre les conflits manuellement dans votre IDE,\npuis committez les modifications.",
+                            RepoPath = repoPath
+                        };
+                    }
+
+                    if (pullProcess.ExitCode == 0)
+                    {
+                        string message;
+                        if (pullOutput.Contains("Already up to date") || pullOutput.Contains("Already up-to-date"))
+                        {
+                            message = "ℹ️ Already up to date. No changes to pull.";
+                        }
+                        else if (pullOutput.Contains("Fast-forward"))
+                        {
+                            message = "✅ Successfully pulled latest changes (Fast-forward).";
+                        }
+                        else
+                        {
+                            message = $"✅ Successfully pulled latest changes!\n{pullOutput}";
+                        }
+
+                        return new GitOperationResult
+                        {
+                            Success = true,
+                            Message = message,
+                            RepoPath = repoPath
+                        };
+                    }
+                    else
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du pull :\n{pullError}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur : {ex.Message}",
+                    RepoPath = repoPath
+                };
+            }
+        }
+
+        /// <summary>
+        /// Récupère la liste des fichiers modifiés dans le repository
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>Liste des fichiers modifiés avec leur statut</returns>
+        public async Task<List<GitModifiedFile>> GetModifiedFilesAsync(string repoPath)
+        {
+            var modifiedFiles = new List<GitModifiedFile>();
+
+            try
+            {
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "status --porcelain",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var process = new Process { StartInfo = processInfo })
+                {
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                    {
+                        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+                        foreach (var line in lines)
+                        {
+                            if (line.Length < 3)
+                                continue;
+
+                            string statusCode = line.Substring(0, 2);
+                            string filePath = line.Substring(3).Trim();
+
+                            string status = "";
+                            string displayStatus = "";
+
+                            // Interpréter les codes de statut Git
+                            if (statusCode.Contains("M"))
+                            {
+                                status = "Modified";
+                                displayStatus = "M";
+                            }
+                            else if (statusCode.Contains("A"))
+                            {
+                                status = "Added";
+                                displayStatus = "A";
+                            }
+                            else if (statusCode.Contains("D"))
+                            {
+                                status = "Deleted";
+                                displayStatus = "D";
+                            }
+                            else if (statusCode.Contains("R"))
+                            {
+                                status = "Renamed";
+                                displayStatus = "R";
+                            }
+                            else if (statusCode.Contains("?"))
+                            {
+                                status = "Untracked";
+                                displayStatus = "?";
+                            }
+                            else
+                            {
+                                status = "Changed";
+                                displayStatus = "C";
+                            }
+
+                            modifiedFiles.Add(new GitModifiedFile
+                            {
+                                FilePath = filePath,
+                                Status = status,
+                                DisplayStatus = displayStatus
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors de la récupération des fichiers modifiés : {ex.Message}");
+            }
+
+            return modifiedFiles;
+        }
+
+        /// <summary>
+        /// Effectue un commit et un push des changements
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <param name="commitTitle">Le titre du commit</param>
+        /// <param name="commitDescription">La description du commit (optionnel)</param>
+        /// <returns>Résultat de l'opération</returns>
+        public async Task<GitOperationResult> CommitAndPushAsync(string repoPath, string commitTitle, string commitDescription)
+        {
+            try
+            {
+                // Étape 1 : git add .
+                var addProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "add .",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var addProcess = new Process { StartInfo = addProcessInfo })
+                {
+                    addProcess.Start();
+                    string addError = await addProcess.StandardError.ReadToEndAsync();
+                    await addProcess.WaitForExitAsync();
+
+                    if (addProcess.ExitCode != 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors de l'ajout des fichiers :\n{addError}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+
+                // Étape 2 : git commit
+                string commitMessage = commitTitle;
+                if (!string.IsNullOrWhiteSpace(commitDescription))
+                {
+                    commitMessage = $"{commitTitle}\n\n{commitDescription}";
+                }
+
+                var commitProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = $"commit -m \"{commitMessage.Replace("\"", "\\\"")}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var commitProcess = new Process { StartInfo = commitProcessInfo })
+                {
+                    commitProcess.Start();
+                    string commitOutput = await commitProcess.StandardOutput.ReadToEndAsync();
+                    string commitError = await commitProcess.StandardError.ReadToEndAsync();
+                    await commitProcess.WaitForExitAsync();
+
+                    if (commitProcess.ExitCode != 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du commit :\n{commitError}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+
+                // Étape 3 : git push
+                var pushProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "push",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var pushProcess = new Process { StartInfo = pushProcessInfo })
+                {
+                    pushProcess.Start();
+                    string pushOutput = await pushProcess.StandardOutput.ReadToEndAsync();
+                    string pushError = await pushProcess.StandardError.ReadToEndAsync();
+                    await pushProcess.WaitForExitAsync();
+
+                    if (pushProcess.ExitCode != 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du push :\n{pushError}\n\n💡 Essayez d'utiliser le bouton Fetch pour récupérer les dernières modifications avant de pousser.",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+
+                return new GitOperationResult
+                {
+                    Success = true,
+                    Message = "✅ Changements commités et poussés avec succès !",
+                    RepoPath = repoPath
+                };
+            }
+            catch (Exception ex)
+            {
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur : {ex.Message}",
+                    RepoPath = repoPath
+                };
+            }
+        }
+
+        /// <summary>
         /// Exécute le script setup.cmd dans le repository pour installer les dépendances
         /// </summary>
         /// <param name="repoPath">Le chemin du repository contenant setup.cmd</param>
@@ -651,5 +982,15 @@ namespace Plateforme.Services
         public string DisplayName { get; set; }
         public bool IsRemote { get; set; }
         public bool IsCurrent { get; set; }
+    }
+
+    /// <summary>
+    /// Représente un fichier modifié dans Git
+    /// </summary>
+    public class GitModifiedFile
+    {
+        public string FilePath { get; set; }
+        public string Status { get; set; }
+        public string DisplayStatus { get; set; }
     }
 }

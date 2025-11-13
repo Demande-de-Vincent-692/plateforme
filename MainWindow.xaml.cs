@@ -298,6 +298,9 @@ namespace Plateforme
 
             // Charger les branches Git
             await LoadBranchesAsync();
+
+            // Vérifier le statut Git pour afficher l'indicateur et activer/désactiver le bouton Push
+            await CheckGitStatusAsync();
         }
 
         private async Task LoadBranchesAsync()
@@ -506,6 +509,157 @@ namespace Plateforme
             catch (Exception ex)
             {
                 AddNotification($"❌ Error: {ex.Message}\n");
+            }
+        }
+
+        private async Task CheckGitStatusAsync()
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Vérifier s'il y a des changements non commités
+                bool hasChanges = await _serviceGit.HasUncommittedChangesAsync(repoPath);
+
+                // Mettre à jour l'indicateur de statut
+                if (hasChanges)
+                {
+                    var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
+                    GitStatusIndicator.Visibility = Visibility.Visible;
+                    GitStatusText.Text = $"{modifiedFiles.Count} uncommitted change(s)";
+                    PushButton.IsEnabled = true;
+                }
+                else
+                {
+                    GitStatusIndicator.Visibility = Visibility.Collapsed;
+                    PushButton.IsEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"⚠️ Error checking Git status: {ex.Message}");
+            }
+        }
+
+        private async void FetchButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Désactiver les boutons pendant l'opération
+                FetchButton.IsEnabled = false;
+                PushButton.IsEnabled = false;
+                LaunchProjectButton.IsEnabled = false;
+                BranchSelector.IsEnabled = false;
+
+                AddNotification($"\n🔄 Fetching latest changes from remote...");
+
+                // Effectuer le fetch et le pull
+                var result = await _serviceGit.FetchAndPullAsync(repoPath);
+
+                AddNotification($"{result.Message}\n");
+
+                if (result.Success)
+                {
+                    // Rafraîchir les branches et le statut Git
+                    await LoadBranchesAsync();
+                    await CheckGitStatusAsync();
+                }
+
+                // Réactiver les boutons
+                FetchButton.IsEnabled = true;
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+
+                // PushButton sera réactivé par CheckGitStatusAsync() s'il y a des changements
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Réactiver les boutons en cas d'erreur
+                FetchButton.IsEnabled = true;
+                PushButton.IsEnabled = true;
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+            }
+        }
+
+        private async void PushButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Récupérer les fichiers modifiés
+                var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
+
+                if (modifiedFiles.Count == 0)
+                {
+                    AddNotification($"\nℹ️ No changes to commit.\n");
+                    return;
+                }
+
+                // Ouvrir le dialogue de commit
+                var commitDialog = new CommitDialog(modifiedFiles)
+                {
+                    Owner = this
+                };
+
+                bool? dialogResult = commitDialog.ShowDialog();
+
+                if (dialogResult == true && commitDialog.WasCommitted)
+                {
+                    // Désactiver les boutons pendant l'opération
+                    PushButton.IsEnabled = false;
+                    FetchButton.IsEnabled = false;
+                    LaunchProjectButton.IsEnabled = false;
+                    BranchSelector.IsEnabled = false;
+
+                    AddNotification($"\n📤 Committing and pushing changes...");
+
+                    // Effectuer le commit et le push
+                    var result = await _serviceGit.CommitAndPushAsync(
+                        repoPath,
+                        commitDialog.CommitTitle,
+                        commitDialog.CommitDescription
+                    );
+
+                    AddNotification($"{result.Message}\n");
+
+                    if (result.Success)
+                    {
+                        // Rafraîchir le statut Git
+                        await CheckGitStatusAsync();
+                    }
+
+                    // Réactiver les boutons
+                    FetchButton.IsEnabled = true;
+                    LaunchProjectButton.IsEnabled = true;
+                    BranchSelector.IsEnabled = true;
+
+                    // PushButton sera réactivé par CheckGitStatusAsync() s'il y a encore des changements
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Réactiver les boutons en cas d'erreur
+                PushButton.IsEnabled = true;
+                FetchButton.IsEnabled = true;
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
             }
         }
 
