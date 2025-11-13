@@ -22,4 +22,11 @@
 	<ItemGroup>
 	  <Folder Include="Repo\" />
 	</ItemGroup>
+	<ItemGroup>
+		<!-- Exclure les fichiers source du dossier Repo de la compilation -->
+		<Compile Remove="Repo\**\*.cs" />
+		<EmbeddedResource Remove="Repo\**\*.resx" />
+		<None Remove="Repo\**\*.xaml" />
+		<Page Remove="Repo\**\*.xaml" />
+	</ItemGroup>
 </Project>

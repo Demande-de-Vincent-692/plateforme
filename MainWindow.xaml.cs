@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -11,6 +13,15 @@ using Plateforme.Services;
 
 namespace Plateforme
 {
+    // Classe helper pour afficher les branches dans le ComboBox
+    public class BranchDisplayItem
+    {
+        public string Icon { get; set; }
+        public string DisplayName { get; set; }
+        public string BranchName { get; set; }
+        public bool IsCurrent { get; set; }
+    }
+
     public partial class MainWindow : Window
     {
         private ServiceGitHub _serviceGitHub;
@@ -19,6 +30,7 @@ namespace Plateforme
         private int _notificationCount = 0;
         private string _repoDirectory;
         private Repository _selectedRepository;
+        private bool _isChangingBranch = false;
 
         public MainWindow()
         {
@@ -195,7 +207,7 @@ namespace Plateforme
 
             TextBlock visibilityText = new TextBlock
             {
-                Text = repo.Private ? "🔒 Private" : "🌍 Public",
+                Text = repo.Private ? "Private" : "Public",
                 FontSize = 10,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Brushes.White
@@ -266,7 +278,7 @@ namespace Plateforme
             }
         }
 
-        private void ShowDetailView(Repository repo)
+        private async void ShowDetailView(Repository repo)
         {
             // Sauvegarder le repo sélectionné
             _selectedRepository = repo;
@@ -283,6 +295,297 @@ namespace Plateforme
             DetailView.Visibility = Visibility.Visible;
 
             AddNotification($"\n📖 Viewing details for: {repo.Name}");
+
+            // Charger les branches Git
+            await LoadBranchesAsync();
+
+            // Vérifier le statut Git pour afficher l'indicateur et activer/désactiver le bouton Push
+            await CheckGitStatusAsync();
+        }
+
+        private async Task LoadBranchesAsync()
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                AddNotification($"🔍 Loading branches...");
+
+                // Récupérer les branches
+                var branches = await _serviceGit.GetBranchesAsync(repoPath);
+
+                if (branches.Count == 0)
+                {
+                    AddNotification($"⚠️ No branches found");
+                    return;
+                }
+
+                // Désactiver temporairement l'événement SelectionChanged
+                _isChangingBranch = true;
+
+                // Préparer les items pour le ComboBox
+                var displayItems = branches.Select(b => new BranchDisplayItem
+                {
+                    Icon = b.IsCurrent ? "✓" : (b.IsRemote ? "🌐" : "🌿"),
+                    DisplayName = b.IsCurrent ? $"{b.DisplayName} (current)" : b.DisplayName,
+                    BranchName = b.Name,
+                    IsCurrent = b.IsCurrent
+                }).ToList();
+
+                // Remplir le ComboBox
+                BranchSelector.ItemsSource = displayItems;
+
+                // Sélectionner la branche actuelle
+                var currentItem = displayItems.FirstOrDefault(i => i.IsCurrent);
+                if (currentItem != null)
+                {
+                    BranchSelector.SelectedItem = currentItem;
+                }
+
+                // Réactiver l'événement
+                _isChangingBranch = false;
+
+                AddNotification($"✅ {branches.Count} branch(es) loaded");
+            }
+            catch (Exception ex)
+            {
+                _isChangingBranch = false;
+                AddNotification($"❌ Error loading branches: {ex.Message}");
+            }
+        }
+
+        private async void BranchSelector_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            // Ignorer si on est en train de charger les branches
+            if (_isChangingBranch)
+                return;
+
+            var selectedItem = BranchSelector.SelectedItem as BranchDisplayItem;
+            if (selectedItem == null || _selectedRepository == null)
+                return;
+
+            // Ignorer si c'est déjà la branche actuelle
+            if (selectedItem.IsCurrent)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Désactiver le bouton Launch pendant le changement
+                LaunchProjectButton.IsEnabled = false;
+                BranchSelector.IsEnabled = false;
+
+                AddNotification($"\n🔄 Switching to branch '{selectedItem.DisplayName}'...");
+
+                // Changer de branche
+                var result = await _serviceGit.CheckoutBranchAsync(repoPath, selectedItem.BranchName);
+
+                AddNotification($"{result.Message}");
+
+                if (result.Success)
+                {
+                    // Recharger les branches pour mettre à jour l'affichage
+                    await LoadBranchesAsync();
+                    AddNotification($"✅ Branch switched successfully!\n");
+
+                    // Vérifier à nouveau le statut après changement de branche
+                    await CheckGitStatusAsync();
+                }
+                else
+                {
+                    // En cas d'échec, remettre la sélection sur la branche actuelle
+                    _isChangingBranch = true;
+                    var currentItem = (BranchSelector.ItemsSource as System.Collections.Generic.List<BranchDisplayItem>)?
+                        .FirstOrDefault(i => i.IsCurrent);
+                    if (currentItem != null)
+                    {
+                        BranchSelector.SelectedItem = currentItem;
+                    }
+                    _isChangingBranch = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Remettre la sélection sur la branche actuelle
+                _isChangingBranch = true;
+                var currentItem = (BranchSelector.ItemsSource as System.Collections.Generic.List<BranchDisplayItem>)?
+                    .FirstOrDefault(i => i.IsCurrent);
+                if (currentItem != null)
+                {
+                    BranchSelector.SelectedItem = currentItem;
+                }
+                _isChangingBranch = false;
+            }
+            finally
+            {
+                // Réactiver le bouton Launch
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+            }
+        }
+
+        private async Task CheckGitStatusAsync()
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Vérifier si on est en cours de merge
+                bool isMerging = _serviceGit.IsMergeInProgress(repoPath);
+
+                if (isMerging)
+                {
+                    // Merge en cours → afficher un indicateur spécial
+                    GitStatusIndicator.Visibility = Visibility.Visible;
+                    GitStatusIndicator.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199)); // Jaune clair
+                    GitStatusIndicator.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // Orange
+                    GitStatusText.Text = "Merge in progress - conflicts resolved, ready to complete";
+                    GitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(180, 83, 9)); // Orange foncé
+                    PushButton.IsEnabled = true;
+                    return;
+                }
+
+                // Récupérer les fichiers modifiés
+                var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
+
+                if (modifiedFiles.Count > 0)
+                {
+                    // Il y a des changements → afficher l'indicateur
+                    GitStatusIndicator.Visibility = Visibility.Visible;
+                    GitStatusIndicator.Background = new SolidColorBrush(Color.FromRgb(254, 226, 226)); // Rouge clair
+                    GitStatusIndicator.BorderBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Rouge
+                    GitStatusText.Text = $"{modifiedFiles.Count} uncommitted change(s)";
+                    GitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(220, 38, 38)); // Rouge foncé
+                    PushButton.IsEnabled = true;
+                }
+                else
+                {
+                    // Pas de changements → cacher l'indicateur
+                    GitStatusIndicator.Visibility = Visibility.Collapsed;
+                    PushButton.IsEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"⚠️ Could not check Git status: {ex.Message}");
+            }
+        }
+
+        private async void PushButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Vérifier si on est en cours de merge
+                bool isMerging = _serviceGit.IsMergeInProgress(repoPath);
+
+                if (isMerging)
+                {
+                    // On est en cours de merge → finaliser directement sans dialogue
+                    AddNotification($"\n🔀 Merge in progress detected. Completing merge...");
+
+                    // Désactiver les boutons pendant l'opération
+                    PushButton.IsEnabled = false;
+                    FetchButton.IsEnabled = false;
+                    LaunchProjectButton.IsEnabled = false;
+                    BranchSelector.IsEnabled = false;
+
+                    // Finaliser le merge et pousser
+                    var result = await _serviceGit.CompleteMergeAndPushAsync(repoPath);
+
+                    AddNotification($"{result.Message}\n");
+
+                    if (result.Success)
+                    {
+                        // Rafraîchir le statut Git
+                        await CheckGitStatusAsync();
+                    }
+
+                    // Réactiver les boutons
+                    FetchButton.IsEnabled = true;
+                    LaunchProjectButton.IsEnabled = true;
+                    BranchSelector.IsEnabled = true;
+
+                    return;
+                }
+
+                // Pas de merge en cours → comportement normal
+                AddNotification($"\n📋 Preparing commit dialog...");
+
+                // Récupérer les fichiers modifiés
+                var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
+
+                if (modifiedFiles.Count == 0)
+                {
+                    AddNotification($"⚠️ No changes to commit.\n");
+                    return;
+                }
+
+                // Ouvrir le dialogue de commit
+                var commitDialog = new CommitDialog(modifiedFiles)
+                {
+                    Owner = this
+                };
+
+                bool? dialogResult = commitDialog.ShowDialog();
+
+                if (dialogResult == true && commitDialog.WasCommitted)
+                {
+                    // Désactiver les boutons pendant l'opération
+                    PushButton.IsEnabled = false;
+                    LaunchProjectButton.IsEnabled = false;
+                    BranchSelector.IsEnabled = false;
+
+                    AddNotification($"\n🔄 Committing and pushing changes...");
+                    AddNotification($"   Title: {commitDialog.CommitTitle}");
+
+                    // Effectuer le commit et le push
+                    var result = await _serviceGit.CommitAndPushAsync(
+                        repoPath,
+                        commitDialog.CommitTitle,
+                        commitDialog.CommitDescription
+                    );
+
+                    AddNotification($"{result.Message}\n");
+
+                    if (result.Success)
+                    {
+                        // Rafraîchir le statut Git
+                        await CheckGitStatusAsync();
+                    }
+
+                    // Réactiver les boutons
+                    PushButton.IsEnabled = true;
+                    LaunchProjectButton.IsEnabled = true;
+                    BranchSelector.IsEnabled = true;
+                }
+                else
+                {
+                    AddNotification($"ℹ️ Commit cancelled.\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Réactiver les boutons en cas d'erreur
+                PushButton.IsEnabled = true;
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+            }
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
@@ -292,6 +595,57 @@ namespace Plateforme
             MainTabControl.Visibility = Visibility.Visible;
 
             AddNotification($"↩️ Back to projects list\n");
+        }
+
+        private async void FetchButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Désactiver les boutons pendant l'opération
+                FetchButton.IsEnabled = false;
+                PushButton.IsEnabled = false;
+                LaunchProjectButton.IsEnabled = false;
+                BranchSelector.IsEnabled = false;
+
+                AddNotification($"\n🔄 Fetching latest changes from remote...");
+
+                // Effectuer le fetch et le pull
+                var result = await _serviceGit.FetchAndPullAsync(repoPath);
+
+                AddNotification($"{result.Message}\n");
+
+                // Rafraîchir les branches et le statut Git (même en cas de conflit)
+                await LoadBranchesAsync();
+                await CheckGitStatusAsync();
+
+                // Si il y a eu un conflit, informer l'utilisateur
+                if (!result.Success && result.Message.Contains("Conflits détectés"))
+                {
+                    AddNotification($"💡 Après avoir résolu les conflits dans votre IDE, cliquez à nouveau sur 'Fetch' pour rafraîchir le statut.\n");
+                }
+
+                // Réactiver les boutons
+                FetchButton.IsEnabled = true;
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+
+                // PushButton sera réactivé par CheckGitStatusAsync() s'il y a des changements
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Réactiver les boutons en cas d'erreur
+                FetchButton.IsEnabled = true;
+                PushButton.IsEnabled = true;
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+            }
         }
 
         private async void LaunchProjectButton_Click(object sender, RoutedEventArgs e)
