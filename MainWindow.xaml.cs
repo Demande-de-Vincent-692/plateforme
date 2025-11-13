@@ -20,7 +20,6 @@ namespace Plateforme
         public string DisplayName { get; set; }
         public string BranchName { get; set; }
         public bool IsCurrent { get; set; }
-        public bool IsCurren { get; set; }
     }
 
     public partial class MainWindow : Window
