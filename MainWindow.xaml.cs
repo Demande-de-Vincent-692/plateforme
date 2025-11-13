@@ -39,7 +39,7 @@ namespace Plateforme
             // Charger le token depuis appsettings.json
             LoadConfiguration();
 
-            _serviceGitHub = new ServiceGitHub("Demande-De-Vincent-692");
+            _serviceGitHub = new ServiceGitHub("Project-Launcher");
 
             // Créer le service Git avec le dossier "Repo" à la racine du projet
             // Remonter de 3 niveaux depuis bin/Debug/net8.0-windows/ pour atteindre la racine
