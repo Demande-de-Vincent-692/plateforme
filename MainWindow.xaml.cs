@@ -207,7 +207,7 @@ namespace Plateforme
 
             TextBlock visibilityText = new TextBlock
             {
-                Text = repo.Private ? "🔒 Private" : "🌍 Public",
+                Text = repo.Private ? "Private" : "Public",
                 FontSize = 10,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Brushes.White
@@ -439,6 +439,21 @@ namespace Plateforme
 
             try
             {
+                // Vérifier si on est en cours de merge
+                bool isMerging = _serviceGit.IsMergeInProgress(repoPath);
+
+                if (isMerging)
+                {
+                    // Merge en cours → afficher un indicateur spécial
+                    GitStatusIndicator.Visibility = Visibility.Visible;
+                    GitStatusIndicator.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199)); // Jaune clair
+                    GitStatusIndicator.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // Orange
+                    GitStatusText.Text = "Merge in progress - conflicts resolved, ready to complete";
+                    GitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(180, 83, 9)); // Orange foncé
+                    PushButton.IsEnabled = true;
+                    return;
+                }
+
                 // Récupérer les fichiers modifiés
                 var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
 
@@ -446,7 +461,10 @@ namespace Plateforme
                 {
                     // Il y a des changements → afficher l'indicateur
                     GitStatusIndicator.Visibility = Visibility.Visible;
+                    GitStatusIndicator.Background = new SolidColorBrush(Color.FromRgb(254, 226, 226)); // Rouge clair
+                    GitStatusIndicator.BorderBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Rouge
                     GitStatusText.Text = $"{modifiedFiles.Count} uncommitted change(s)";
+                    GitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(220, 38, 38)); // Rouge foncé
                     PushButton.IsEnabled = true;
                 }
                 else
@@ -471,6 +489,40 @@ namespace Plateforme
 
             try
             {
+                // Vérifier si on est en cours de merge
+                bool isMerging = _serviceGit.IsMergeInProgress(repoPath);
+
+                if (isMerging)
+                {
+                    // On est en cours de merge → finaliser directement sans dialogue
+                    AddNotification($"\n🔀 Merge in progress detected. Completing merge...");
+
+                    // Désactiver les boutons pendant l'opération
+                    PushButton.IsEnabled = false;
+                    FetchButton.IsEnabled = false;
+                    LaunchProjectButton.IsEnabled = false;
+                    BranchSelector.IsEnabled = false;
+
+                    // Finaliser le merge et pousser
+                    var result = await _serviceGit.CompleteMergeAndPushAsync(repoPath);
+
+                    AddNotification($"{result.Message}\n");
+
+                    if (result.Success)
+                    {
+                        // Rafraîchir le statut Git
+                        await CheckGitStatusAsync();
+                    }
+
+                    // Réactiver les boutons
+                    FetchButton.IsEnabled = true;
+                    LaunchProjectButton.IsEnabled = true;
+                    BranchSelector.IsEnabled = true;
+
+                    return;
+                }
+
+                // Pas de merge en cours → comportement normal
                 AddNotification($"\n📋 Preparing commit dialog...");
 
                 // Récupérer les fichiers modifiés
@@ -567,11 +619,14 @@ namespace Plateforme
 
                 AddNotification($"{result.Message}\n");
 
-                if (result.Success)
+                // Rafraîchir les branches et le statut Git (même en cas de conflit)
+                await LoadBranchesAsync();
+                await CheckGitStatusAsync();
+
+                // Si il y a eu un conflit, informer l'utilisateur
+                if (!result.Success && result.Message.Contains("Conflits détectés"))
                 {
-                    // Rafraîchir les branches et le statut Git
-                    await LoadBranchesAsync();
-                    await CheckGitStatusAsync();
+                    AddNotification($"💡 Après avoir résolu les conflits dans votre IDE, cliquez à nouveau sur 'Fetch' pour rafraîchir le statut.\n");
                 }
 
                 // Réactiver les boutons

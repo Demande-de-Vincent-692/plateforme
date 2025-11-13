@@ -347,6 +347,25 @@ namespace Plateforme.Services
         }
 
         /// <summary>
+        /// Vérifie si le repository est en cours de merge (fusion)
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>True si un merge est en cours, False sinon</returns>
+        public bool IsMergeInProgress(string repoPath)
+        {
+            try
+            {
+                // Git crée un fichier MERGE_HEAD dans .git/ pendant un merge
+                string mergeHeadPath = Path.Combine(repoPath, ".git", "MERGE_HEAD");
+                return File.Exists(mergeHeadPath);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Récupère la branche Git actuelle
         /// </summary>
         /// <param name="repoPath">Le chemin du repository</param>
@@ -888,6 +907,104 @@ namespace Plateforme.Services
                 {
                     Success = true,
                     Message = "✅ Changements commités et poussés avec succès !",
+                    RepoPath = repoPath
+                };
+            }
+            catch (Exception ex)
+            {
+                return new GitOperationResult
+                {
+                    Success = false,
+                    Message = $"❌ Erreur : {ex.Message}",
+                    RepoPath = repoPath
+                };
+            }
+        }
+
+        /// <summary>
+        /// Finalise un merge en cours (conclut la fusion après résolution des conflits)
+        /// </summary>
+        /// <param name="repoPath">Le chemin du repository</param>
+        /// <returns>Résultat de l'opération</returns>
+        public async Task<GitOperationResult> CompleteMergeAndPushAsync(string repoPath)
+        {
+            try
+            {
+                // Étape 1 : Vérifier qu'on est bien en cours de merge
+                if (!IsMergeInProgress(repoPath))
+                {
+                    return new GitOperationResult
+                    {
+                        Success = false,
+                        Message = "❌ Aucun merge en cours à finaliser.",
+                        RepoPath = repoPath
+                    };
+                }
+
+                // Étape 2 : git commit (sans message, Git utilisera le message de merge automatique)
+                var commitProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "commit --no-edit",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var commitProcess = new Process { StartInfo = commitProcessInfo })
+                {
+                    commitProcess.Start();
+                    string commitOutput = await commitProcess.StandardOutput.ReadToEndAsync();
+                    string commitError = await commitProcess.StandardError.ReadToEndAsync();
+                    await commitProcess.WaitForExitAsync();
+
+                    if (commitProcess.ExitCode != 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors de la finalisation du merge :\n{commitError}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+
+                // Étape 3 : git push
+                var pushProcessInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "push",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = repoPath
+                };
+
+                using (var pushProcess = new Process { StartInfo = pushProcessInfo })
+                {
+                    pushProcess.Start();
+                    string pushOutput = await pushProcess.StandardOutput.ReadToEndAsync();
+                    string pushError = await pushProcess.StandardError.ReadToEndAsync();
+                    await pushProcess.WaitForExitAsync();
+
+                    if (pushProcess.ExitCode != 0)
+                    {
+                        return new GitOperationResult
+                        {
+                            Success = false,
+                            Message = $"❌ Erreur lors du push :\n{pushError}",
+                            RepoPath = repoPath
+                        };
+                    }
+                }
+
+                return new GitOperationResult
+                {
+                    Success = true,
+                    Message = "✅ Merge finalisé et changements poussés avec succès !",
                     RepoPath = repoPath
                 };
             }

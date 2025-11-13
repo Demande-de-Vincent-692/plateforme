@@ -333,7 +333,7 @@
                                 Margin="0,0,0,20"
                                 Click="BackButton_Click">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="←" FontSize="20" Foreground="#4F46E5" Margin="0,0,8,0"/>
+                                <TextBlock Text="←" FontSize="20" Foreground="#4F46E5" Margin="0,-5,3,0"/>
                                 <TextBlock Text="Back to projects" FontSize="14" Foreground="#4F46E5" FontWeight="Medium"/>
                             </StackPanel>
                         </Button>
@@ -390,7 +390,7 @@
 
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                                    <TextBlock Text="🌿" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="🐙" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                     <TextBlock Text="Git Management"
                                               FontSize="18"
                                               FontWeight="SemiBold"
@@ -495,7 +495,7 @@
                                     </Button.Style>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="↓" FontSize="18" Margin="0,0,8,0" Foreground="White" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Fetch Latest"
+                                        <TextBlock Text="Fetch"
                                                   FontSize="14"
                                                   FontWeight="SemiBold"
                                                   Foreground="White"
@@ -550,7 +550,7 @@
                                     </Button.Style>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="↑" FontSize="18" Margin="0,0,8,0" Foreground="White" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Push Changes"
+                                        <TextBlock Text="Push"
                                                   FontSize="14"
                                                   FontWeight="SemiBold"
                                                   Foreground="White"
@@ -632,11 +632,11 @@
                                         Padding="15"
                                         Margin="0,20,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="ℹ️ Quick Info"
+                                        <TextBlock
                                                   FontSize="12"
                                                   FontWeight="SemiBold"
                                                   Foreground="#6B7280"
-                                                  Margin="0,0,0,10"/>
+                                                  Margin="0,0,0,-14"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                                             <TextBlock Text="Status: " FontSize="12" Foreground="#6B7280"/>
                                             <TextBlock Text="Installed" FontSize="12" Foreground="#22C55E" FontWeight="SemiBold"/>
