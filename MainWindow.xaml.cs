@@ -391,6 +391,9 @@ namespace Plateforme
                     // Recharger les branches pour mettre à jour l'affichage
                     await LoadBranchesAsync();
                     AddNotification($"✅ Branch switched successfully!\n");
+
+                    // Vérifier à nouveau le statut après changement de branche
+                    await CheckGitStatusAsync();
                 }
                 else
                 {
@@ -422,6 +425,112 @@ namespace Plateforme
             finally
             {
                 // Réactiver le bouton Launch
+                LaunchProjectButton.IsEnabled = true;
+                BranchSelector.IsEnabled = true;
+            }
+        }
+
+        private async Task CheckGitStatusAsync()
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                // Récupérer les fichiers modifiés
+                var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
+
+                if (modifiedFiles.Count > 0)
+                {
+                    // Il y a des changements → afficher l'indicateur
+                    GitStatusIndicator.Visibility = Visibility.Visible;
+                    GitStatusText.Text = $"{modifiedFiles.Count} uncommitted change(s)";
+                    PushButton.IsEnabled = true;
+                }
+                else
+                {
+                    // Pas de changements → cacher l'indicateur
+                    GitStatusIndicator.Visibility = Visibility.Collapsed;
+                    PushButton.IsEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"⚠️ Could not check Git status: {ex.Message}");
+            }
+        }
+
+        private async void PushButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRepository == null)
+                return;
+
+            string repoPath = Path.Combine(_repoDirectory, _selectedRepository.Name);
+
+            try
+            {
+                AddNotification($"\n📋 Preparing commit dialog...");
+
+                // Récupérer les fichiers modifiés
+                var modifiedFiles = await _serviceGit.GetModifiedFilesAsync(repoPath);
+
+                if (modifiedFiles.Count == 0)
+                {
+                    AddNotification($"⚠️ No changes to commit.\n");
+                    return;
+                }
+
+                // Ouvrir le dialogue de commit
+                var commitDialog = new CommitDialog(modifiedFiles)
+                {
+                    Owner = this
+                };
+
+                bool? dialogResult = commitDialog.ShowDialog();
+
+                if (dialogResult == true && commitDialog.WasCommitted)
+                {
+                    // Désactiver les boutons pendant l'opération
+                    PushButton.IsEnabled = false;
+                    LaunchProjectButton.IsEnabled = false;
+                    BranchSelector.IsEnabled = false;
+
+                    AddNotification($"\n🔄 Committing and pushing changes...");
+                    AddNotification($"   Title: {commitDialog.CommitTitle}");
+
+                    // Effectuer le commit et le push
+                    var result = await _serviceGit.CommitAndPushAsync(
+                        repoPath,
+                        commitDialog.CommitTitle,
+                        commitDialog.CommitDescription
+                    );
+
+                    AddNotification($"{result.Message}\n");
+
+                    if (result.Success)
+                    {
+                        // Rafraîchir le statut Git
+                        await CheckGitStatusAsync();
+                    }
+
+                    // Réactiver les boutons
+                    PushButton.IsEnabled = true;
+                    LaunchProjectButton.IsEnabled = true;
+                    BranchSelector.IsEnabled = true;
+                }
+                else
+                {
+                    AddNotification($"ℹ️ Commit cancelled.\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error: {ex.Message}\n");
+
+                // Réactiver les boutons en cas d'erreur
+                PushButton.IsEnabled = true;
                 LaunchProjectButton.IsEnabled = true;
                 BranchSelector.IsEnabled = true;
             }
