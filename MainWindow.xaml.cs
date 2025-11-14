@@ -69,6 +69,9 @@ namespace Plateforme
                 AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
                 AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
                 AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
+                AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
+                AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
+                AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
             }
         }
 
