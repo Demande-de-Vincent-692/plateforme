@@ -62,7 +62,7 @@ namespace Plateforme
                     string jsonContent = File.ReadAllText(settingsPath);
                     var settings = JsonSerializer.Deserialize<AppSettings>(jsonContent);
                     _githubToken = settings?.GitHub?.Token ?? string.Empty;
-                    _organizationName = settings?.GitHub?.OrganizationName ?? "Project-Launcher";
+                    _organizationName = settings?.GitHub?.OrganizationName;
                 }
             }
             catch (Exception ex)
