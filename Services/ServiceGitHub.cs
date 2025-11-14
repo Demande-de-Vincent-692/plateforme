@@ -48,6 +48,22 @@ namespace Plateforme.Services
             }
         }
 
+        /// Récupère toutes les organisations accessibles au token
+        public async Task<List<Organization>> GetAllOrganizationsAsync()
+        {
+            try
+            {
+                // Appel à l'API GitHub via Octokit pour récupérer toutes les organisations
+                var orgs = await _client.Organization.GetAllForCurrent();
+
+                return new List<Organization>(orgs);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Erreur lors de la récupération des organisations: {ex.Message}", ex);
+            }
+        }
+
         /// Récupère tous les repositories publics et privés d'une organisation
         public async Task<List<Repository>> GetOrganizationRepositoriesAsync()
         {

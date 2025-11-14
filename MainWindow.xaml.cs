@@ -32,6 +32,7 @@ namespace Plateforme
         private string _repoDirectory;
         private Repository _selectedRepository;
         private bool _isChangingBranch = false;
+        private bool _isChangingOrganization = false;
 
         public MainWindow()
         {
@@ -40,15 +41,14 @@ namespace Plateforme
             // Charger le token depuis appsettings.json
             LoadConfiguration();
 
-            _serviceGitHub = new ServiceGitHub(_organizationName);
-
             // Créer le service Git avec le dossier "Repo" à la racine du projet
             // Remonter de 3 niveaux depuis bin/Debug/net8.0-windows/ pour atteindre la racine
             string projectRoot = Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory).Parent.Parent.Parent.FullName;
             _repoDirectory = Path.Combine(projectRoot, "Repo");
             _serviceGit = new ServiceGit(_repoDirectory);
 
-            LoadProjects();
+            // Charger les organisations et ensuite les projets
+            LoadOrganizationsAsync();
         }
 
         private void LoadConfiguration()
@@ -61,13 +61,99 @@ namespace Plateforme
                 {
                     string jsonContent = File.ReadAllText(settingsPath);
                     var settings = JsonSerializer.Deserialize<AppSettings>(jsonContent);
-                    _githubToken = settings?.GitHub?.Token ?? string.Empty;
+                    _githubToken = settings?.GitHub?.Token;
                     _organizationName = settings?.GitHub?.OrganizationName;
                 }
             }
             catch (Exception ex)
             {
                 AddNotification($"⚠️ Failed to load configuration: {ex.Message}");
+            }
+        }
+
+        private async void LoadOrganizationsAsync()
+        {
+            try
+            {
+                AddNotification("🔍 Loading organizations...");
+
+                // Créer un ServiceGitHub temporaire pour récupérer les organisations
+                var tempService = new ServiceGitHub(_organizationName ?? "");
+
+                // Récupérer toutes les organisations
+                var organizations = await tempService.GetAllOrganizationsAsync();
+
+                if (organizations.Count == 0)
+                {
+                    AddNotification("⚠️ No organizations found for this token.");
+                    return;
+                }
+
+                AddNotification($"✅ {organizations.Count} organization(s) found!");
+
+                // Désactiver temporairement l'événement SelectionChanged
+                _isChangingOrganization = true;
+
+                // Remplir la ComboBox
+                OrganizationSelector.ItemsSource = organizations;
+
+                // Sélectionner l'organisation configurée dans appsettings.json ou la première
+                var selectedOrg = organizations.FirstOrDefault(o => o.Login == _organizationName)
+                                ?? organizations.First();
+
+                OrganizationSelector.SelectedItem = selectedOrg;
+                _organizationName = selectedOrg.Login;
+
+                // Créer le ServiceGitHub avec l'organisation sélectionnée
+                _serviceGitHub = new ServiceGitHub(_organizationName);
+
+                // Réactiver l'événement
+                _isChangingOrganization = false;
+
+                AddNotification($"🏢 Selected organization: {_organizationName}");
+
+                // Charger les projets de l'organisation sélectionnée
+                LoadProjects();
+            }
+            catch (Exception ex)
+            {
+                _isChangingOrganization = false;
+                AddNotification($"❌ Error loading organizations: {ex.Message}");
+            }
+        }
+
+        private async void OrganizationSelector_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            // Ignorer si on est en train de charger les organisations
+            if (_isChangingOrganization)
+                return;
+
+            var selectedOrg = OrganizationSelector.SelectedItem as Organization;
+            if (selectedOrg == null)
+                return;
+
+            // Ignorer si c'est déjà l'organisation actuelle
+            if (selectedOrg.Login == _organizationName)
+                return;
+
+            try
+            {
+                AddNotification($"\n🔄 Switching to organization: {selectedOrg.Login}...");
+
+                // Mettre à jour l'organisation
+                _organizationName = selectedOrg.Login;
+
+                // Recréer le ServiceGitHub avec la nouvelle organisation
+                _serviceGitHub = new ServiceGitHub(_organizationName);
+
+                AddNotification($"✅ Organization changed to: {_organizationName}");
+
+                // Recharger les projets
+                LoadProjects();
+            }
+            catch (Exception ex)
+            {
+                AddNotification($"❌ Error changing organization: {ex.Message}");
             }
         }
 
@@ -798,6 +884,7 @@ namespace Plateforme
             NotificationTextBlock.Text = string.Empty;
             _notificationCount = 0;
             UpdateNotificationBadge();
+            CheckGitStatusAsync();
             LoadProjects();
         }
 

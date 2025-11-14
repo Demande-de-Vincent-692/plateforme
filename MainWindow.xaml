@@ -141,6 +141,30 @@
                               FontWeight="Bold"
                               Foreground="White"
                               Margin="0,0,0,5"/>
+                    <ComboBox x:Name="OrganizationSelector" HorizontalAlignment="Left"
+                              SelectionChanged="OrganizationSelector_Changed"
+                              FontSize="14"
+                              Padding="12,8"
+                              Background="White"
+                              Foreground="#4F46E5"
+                              BorderBrush="#E0E7FF"
+                              BorderThickness="1"
+                              MinWidth="300"
+                              MaxWidth="300">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="🏢"
+                                              FontSize="14"
+                                              Margin="0,0,8,0"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Login}"
+                                              FontSize="14"
+                                              VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
