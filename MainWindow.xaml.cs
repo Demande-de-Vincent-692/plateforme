@@ -27,6 +27,7 @@ namespace Plateforme
         private ServiceGitHub _serviceGitHub;
         private ServiceGit _serviceGit;
         private string _githubToken;
+        private string _organizationName;
         private int _notificationCount = 0;
         private string _repoDirectory;
         private Repository _selectedRepository;
@@ -39,7 +40,7 @@ namespace Plateforme
             // Charger le token depuis appsettings.json
             LoadConfiguration();
 
-            _serviceGitHub = new ServiceGitHub("Project-Launcher");
+            _serviceGitHub = new ServiceGitHub(_organizationName);
 
             // Créer le service Git avec le dossier "Repo" à la racine du projet
             // Remonter de 3 niveaux depuis bin/Debug/net8.0-windows/ pour atteindre la racine
@@ -61,6 +62,7 @@ namespace Plateforme
                     string jsonContent = File.ReadAllText(settingsPath);
                     var settings = JsonSerializer.Deserialize<AppSettings>(jsonContent);
                     _githubToken = settings?.GitHub?.Token ?? string.Empty;
+                    _organizationName = settings?.GitHub?.OrganizationName ?? "Project-Launcher";
                 }
             }
             catch (Exception ex)
